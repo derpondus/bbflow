@@ -1,5 +1,7 @@
 # Copyright (c) 2025 Max Planck Institute for Polymer Research
 # Licensed under the MIT license.
+import functools
+import time
 
 import numpy as np
 from pathlib import Path
@@ -147,3 +149,23 @@ def download_model(tag:str='latest'):
     _download_file(ckpt_url, ckpt_path, progress_bar=True)
 
     return ckpt_path
+
+def trace_usage(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        try:
+            arguments = [repr(a) for a in args] + [f"{k}={v!r}" for k, v in kwargs.items()]
+
+            logging.info(f"TRACE start: {func.__name__}({', '.join(arguments)})")
+            call_time = time.time()
+            result = func(*args, **kwargs)
+            runtime = time.time() - call_time
+            timing = f"{time.strftime('%X', time.localtime(runtime))}.{str(runtime).split('.')[1]}"
+            logging.info(f"TRACE end: {func.__name__}({', '.join(arguments)}) [{timing}]")
+            return result
+        except Exception as e:
+            runtime = time.time() - call_time
+            timing = f"{time.strftime('%X', time.localtime(runtime))}.{str(runtime).split('.')[1]}"
+            logging.info(f"TRACE exception: {func.__name__}({', '.join(arguments)}) [{timing}] {str(e)}")
+            raise e
+    return wrapper

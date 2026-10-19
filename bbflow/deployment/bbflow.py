@@ -28,7 +28,7 @@ if hasattr(torch.serialization, 'add_safe_globals'):
 from gafl import experiment_utils as eu
 from gafl.data import utils as du
 from bbflow.analysis import utils as au
-from bbflow.deployment.utils import estimate_max_batchsize, recursive_update, ckpt_path_from_tag
+from bbflow.deployment.utils import estimate_max_batchsize, recursive_update, ckpt_path_from_tag, trace_usage
 
 from bbflow.models.bbflow_module import BBFlowModule
 from bbflow.data.utils import frames_from_pdb
@@ -103,7 +103,7 @@ class BBFlow:
 
         self._cfg = cfg
         self._cfg.interpolant = cfg.inference.interpolant
-        self._cfg.interpolant.use_tqdm = False
+        # self._cfg.interpolant.use_tqdm = False
         self._ckpt_cfg = ckpt_cfg
         self._infer_cfg = cfg.inference
         self._samples_cfg = self._infer_cfg.samples
@@ -150,6 +150,7 @@ class BBFlow:
         self._flow_module.to(device)
         self.device = device
 
+    @trace_usage
     def _sample_states(self, trans_eq:torch.Tensor, rotmats_eq:torch.Tensor, seq:torch.Tensor, n_samples:int=10, batch_size:int=None, device:str=None, cuda_memory_GB:int=40):
         """
         trans_equilibrium: torch.Tensor of shape (n_residues, 3)
@@ -223,6 +224,7 @@ class BBFlow:
 
 
 
+    @trace_usage
     def sample(
             self,
             input_path:Union[Path,str],

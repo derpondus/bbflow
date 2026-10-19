@@ -26,6 +26,8 @@ from gafl.data.interpolant import (
     _rots_diffuse_mask
 )
 
+from bbflow.deployment.utils import trace_usage
+
 
 class InterpolantBBFlow(Interpolant):
 
@@ -127,7 +129,8 @@ class InterpolantBBFlow(Interpolant):
         rotmats_t = self._corrupt_rotmats(rotmats_1, rotmats_0, t, res_mask)
         noisy_batch['rotmats_t'] = rotmats_t
         return noisy_batch
-    
+
+    @trace_usage
     def _pure_noise_prior(self, num_batch, num_res, rotmats_1):
         trans_nm_0 = _centered_gaussian(num_batch, num_res, self._device)
         trans_0 = trans_nm_0 * du.NM_TO_ANG_SCALE
@@ -151,6 +154,7 @@ class InterpolantBBFlow(Interpolant):
             
         return trans_0, rotmats_0
 
+    @trace_usage
     def _conditional_prior(self, num_batch, num_res, trans_equilibrium, rotmats_equilibrium):
         res_mask = torch.ones(num_batch, num_res, device=self._device)
         trans_0, rotmats_0 = self._pure_noise_prior(num_batch, num_res, rotmats_equilibrium)
@@ -170,6 +174,7 @@ class InterpolantBBFlow(Interpolant):
 
         return trans_0, rotmats_0
 
+    @trace_usage
     def sample_from_prior(
             self,
             num_batch,
@@ -191,6 +196,7 @@ class InterpolantBBFlow(Interpolant):
             raise ValueError(f'Unknown prior type {prior_type}')
     
 
+    @trace_usage
     def sample(
             self,
             num_batch,
@@ -226,7 +232,7 @@ class InterpolantBBFlow(Interpolant):
             iterator = tqdm(
                 ts[1:],
                 leave=False,
-                desc=f'Sampl. {num_batch} states, len {num_res}, rank {dist.get_rank()} - timesteps'
+                desc=f'Sampl. {num_batch} states, len {num_res}' # , rank {dist.get_rank()} - timesteps
             )
 
         else:
@@ -240,7 +246,9 @@ class InterpolantBBFlow(Interpolant):
             batch['rotmats_t'] = rotmats_t_1
             batch['t'] = t
             with torch.no_grad():
+                logging.info("TRACE start: InterpolantBBFlow.sample: model.forward")
                 model_out = model(batch)
+                logging.info("TRACE end: InterpolantBBFlow.sample: model.forward")
             # Process model output.
             pred_trans_1 = model_out['pred_trans']
             pred_rotmats_1 = model_out['pred_rotmats']
@@ -270,7 +278,9 @@ class InterpolantBBFlow(Interpolant):
         batch['t'] = t
         
         with torch.no_grad():
+            logging.info("TRACE start: InterpolantBBFlow.sample: model.forward")
             model_out = model(batch)
+            logging.info("TRACE end: InterpolantBBFlow.sample: model.forward")
         # Process model output.
         pred_trans_1 = model_out['pred_trans']
         pred_rotmats_1 = model_out['pred_rotmats']

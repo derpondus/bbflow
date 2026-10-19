@@ -1,8 +1,8 @@
 # Copyright (c) 2025 Max Planck Institute for Polymer Research
 # Licensed under the MIT license.
-
+import logging
 from pathlib import Path
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict, Any, Union
 import torch
 import numpy as np
 import mdtraj
@@ -18,6 +18,10 @@ from gafl.data.residue_constants import restype_order
 from bbflow.analysis.analyse_bbflow import _calc_rmsf, _align_tops
 import json
 
+from bbflow.deployment.utils import trace_usage
+
+
+@trace_usage
 def backbone_to_frames(N_atoms, CA_atoms, C_atoms, resnames):
     seq_numerical = torch.tensor([restype_order[aa] for aa in resnames])
     seq_onehot = torch.nn.functional.one_hot(seq_numerical, 21).float()
@@ -47,7 +51,8 @@ def backbone_to_frames(N_atoms, CA_atoms, C_atoms, resnames):
         "seq_onehot": seq_onehot,
     }
 
-def frames_from_pdb(pdb_path:Path)->Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+@trace_usage
+def frames_from_pdb(pdb_path:Union[Path,str])->Tuple[torch.Tensor, torch.Tensor, torch.Tensor, np.typing.NDArray]:
     """
     Extracts frames from a PDB file.
 
