@@ -42,7 +42,7 @@ class InterpolantBBFlow(Interpolant):
 
         super().__init__(cfg)
 
-    
+    @trace_usage
     def _intra_batch_ot(self, trans_1, trans_0, t, res_mask):
         B, N = trans_0.shape[:2]
         
@@ -71,6 +71,7 @@ class InterpolantBBFlow(Interpolant):
             ) 
             return trans_0
 
+    @trace_usage
     def _corrupt_trans(self, trans_1, trans_0, t, res_mask):
 
         if self._cfg.batch_ot == "inter":
@@ -85,7 +86,8 @@ class InterpolantBBFlow(Interpolant):
         trans_t = _trans_diffuse_mask(trans_t, trans_1, res_mask)
         
         return trans_t * res_mask[..., None]
-    
+
+    @trace_usage
     def _corrupt_rotmats(self, rotmats_1, rotmats_0, t, res_mask):
         rotmats_t = so3_utils.geodesic_t(t[..., None], rotmats_1, rotmats_0)
         identity = torch.eye(3, device=self._device)

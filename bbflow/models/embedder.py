@@ -15,6 +15,9 @@ from gafl.data import utils as du
 from gafl.models.ipa_pytorch import Linear
 from gafl.models.utils import get_index_embedding, get_time_embedding, get_length_embedding
 
+from bbflow.deployment.utils import trace_usage
+
+
 class MLP(nn.Module):
     def __init__(self, c1, c2, num_layers=2, use_layer_norm=True, dropout=0) -> None:
         super(MLP, self).__init__()
@@ -167,6 +170,7 @@ class Embedder(nn.Module):
             max_len=2056
         )
 
+    @trace_usage
     def forward(self, input_features):
         """
         Args:

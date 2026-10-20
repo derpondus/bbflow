@@ -2,6 +2,7 @@
 # Copyright (c) 2024 HITS gGmbH
 # Copyright (c) Microsoft Corporation.
 # Licensed under the MIT license.
+import logging
 
 import numpy as np
 import torch
@@ -12,6 +13,7 @@ from gafl.data import utils as du
 from gafl.models.gafl.pga_utils import embed_frames, EquiLayerNorm
 from gafl.models.gafl.cfa import GeometricFrameAttention, Linear, BackboneUpdate
 
+from bbflow.deployment.utils import trace_usage
 from bbflow.models.embedder import Embedder
 
 
@@ -89,6 +91,7 @@ class BBFlowModel(nn.Module):
                 )
 
 
+    @trace_usage
     def forward(self, input_feats):
         node_mask = input_feats['res_mask']
         edge_mask = node_mask[:, None] * node_mask[:, :, None]
@@ -128,11 +131,13 @@ class BBFlowModel(nn.Module):
         curr_frames = embed_frames(rotmats_t, trans_t * du.ANG_TO_NM_SCALE)
 
         # Main trunk
+        logging.info(f"TRACE start: BBFlowModel: trunk.forward")
         init_node_embed = init_node_embed * node_mask[..., None]
         node_embed = init_node_embed * node_mask[..., None]
         edge_embed = init_edge_embed * edge_mask[..., None]
         g = None
         for b in range(self._gfa_conf.num_blocks):
+            logging.info(f"TRACE run: BBFlowModel: gfa_{b}.forward")
             gfa_embed, g_gfa, gfa_rel = self.trunk[f'gfa_{b}'](
                 node_embed,
                 g,
@@ -141,19 +146,25 @@ class BBFlowModel(nn.Module):
                 node_mask)
             gfa_embed *= node_mask[..., None]
             gfa_rel = gfa_rel * node_mask[..., None, None]
+            logging.info(f"TRACE run: BBFlowModel: gfa_ln_{b}.forward")
             node_embed = self.trunk[f'gfa_ln_{b}'](node_embed + gfa_embed)
-            
+
+            logging.info(f"TRACE run: BBFlowModel: g_ln_{b}.forward")
             if g is not None:
                 g = self.trunk[f'g_ln_{b}'](g + g_gfa)
             else:
                 g = self.trunk[f'g_ln_{b}'](g_gfa)
             g =  g * node_mask[..., None, None]
-                
+
+            logging.info(f"TRACE run: BBFlowModel: seq_tfmr_{b}.forward")
             seq_tfmr_out = self.trunk[f'seq_tfmr_{b}'](
                 node_embed, src_key_padding_mask=(1 - node_mask).bool())
-            node_embed = node_embed + self.trunk[f'post_tfmr_{b}'](seq_tfmr_out)    
+            logging.info(f"TRACE run: BBFlowModel: post_tfmr_{b}.forward")
+            node_embed = node_embed + self.trunk[f'post_tfmr_{b}'](seq_tfmr_out)
+            logging.info(f"TRACE run: BBFlowModel: node_transition_{b}.forward")
             node_embed = self.trunk[f'node_transition_{b}'](node_embed)
             node_embed = node_embed * node_mask[..., None]
+            logging.info(f"TRACE run: BBFlowModel: bb_update_{b}.forward")
             curr_frames, curr_rigids = self.trunk[f'bb_update_{b}'](
                 node_embed,
                 g,
@@ -163,9 +174,11 @@ class BBFlowModel(nn.Module):
                 node_mask[..., None],)
 
             if b < self._gfa_conf.num_blocks-1:
+                logging.info(f"TRACE run: BBFlowModel: edge_transition_{b}.forward")
                 edge_embed = self.trunk[f'edge_transition_{b}'](
                     node_embed, edge_embed)
                 edge_embed *= edge_mask[..., None]
+        logging.info(f"TRACE end: BBFlowModel: trunk.forward")
 
         curr_rigids = self.rigids_nm_to_ang(curr_rigids)
         pred_trans = curr_rigids.get_trans()
